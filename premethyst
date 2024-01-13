@@ -1,0 +1,167 @@
+#!/usr/bin/perl
+
+BEGIN {
+	use FindBin '$RealBin';
+	push @INC, $RealBin;
+}
+
+# VERSION INFO
+$version = "0.1";
+%version_info = (
+	"0.1" => "240112 - Initial aggregation from sciMET commands."
+);
+
+use Cwd;
+use premethyst_commands::general;
+use Getopt::Std; %opt = ();
+use Exporter "import";
+
+# LOAD DEFAULTS
+$DEFAULTS_FILE = "$RealBin/premethyst.cfg";
+if (-e "$ENV{'HOME'}/.premethyst.cfg") {
+	$DEFAULTS_FILE = "$ENV{'HOME'}/.premethyst.cfg";
+} elsif (-e "$ENV{'HOME'}/premethyst.cfg") {
+	$DEFAULTS_FILE = "$ENV{'HOME'}/premethyst.cfg";
+} elsif ($ARGV[0] =~ /\.cfg$/) {
+	# special config specification as first argument - advanced use only
+	$DEFAULTS_FILE = shift(@ARGV);
+	print STDERR "INFO: Special config file detected as first argument. ($ARGV[0])\n";
+}
+
+load_defaults($DEFAULTS_FILE);
+
+# LOAD COMMANDS DIRECTLY FROM MODULE FILES
+opendir CMDS, "$RealBin/premethyst_commands" || die "ERROR: Cannot locate the commands directory.\nERROR: It should be present in the same directory as the premethyst executable: $RealBin\n";
+while ($command_module_name = readdir(CMDS)) {
+	if ($command_module_name !~ /(^\.|empty_module|test)/) {
+		if ($command_module_name =~ /\.pm$/) { # exceptions -> do not show as available commands
+			$command_module_name =~ s/\.pm$//;
+			$COMMAND_NAMES{$command_module_name} = "pm";
+		} elsif ($command_module_name =~ /\.py$/) { # python commands
+			$command_module_name =~ s/\.py$//;
+			$COMMAND_NAMES{$command_module_name} = "py";
+		} elsif ($command_module_name =~ /\.r$/i) { # R commands
+			$command_module_name =~ s/\.(r|R)$//;
+			$COMMAND_NAMES{$command_module_name} = "r";
+		}
+	}
+} closedir CMDS;
+
+# LOAD ALIASES (optional for each command)
+load_aliases();
+
+# DIE MESSAGE
+$die = "
+premethyst [command] [options] [arguments]
+
+Version: $version ($version_info{$version})
+    adeylab.org & github.com/adeylab
+
+premethyst is a colelction of commands for the upfront processing
+of sciMET single-cell DNA methylation data. It starts with
+demultipelxed fastq files (recommend: unidex) and takes them
+through to an AnnData file with base-level methylation calls
+that can be analyzed using the amethyst R package.
+
+premethyst commands are in the form of [class]-[operation]
+
+where [class] is the file type input (e.g. 'fastq') and the operation
+is the command that will be carried out.
+
+Run 'premethyst list' to print out a list of commands and descriptions.
+To list a subset of commands include an additional argument with the
+search term, e.g. 'premethyst list fastq'\n\n";
+
+# PULL COMMAND
+if (defined $ARGV[0]) {
+	if ($ARGV[0] =~ /^list$/) {
+		load_descriptions();
+		$die .= "   Command:             Description:\n\n";
+		foreach $command_module_name (sort {$a cmp $b} keys %COMMAND_NAMES) {
+			if (!defined $ARGV[1] || $command_module_name =~ /$ARGV[1]/i) {
+				if ($command_module_name ne "general") {
+					$list_command = sprintf("%-20s", $command_module_name);
+					$list_command =~ s/_/-/g;
+					if (defined $COMMAND_DESCRIPTOR{$command_module_name}) {
+						$die .= "   $list_command $COMMAND_DESCRIPTOR{$command_module_name}\n";
+					} else {
+						$die .= "   $list_command WARNING: No description listed.\n";
+					}
+				}
+			}
+		}
+		die "$die\n";
+	} else {
+		
+		$called_command = (shift(@ARGV));
+		$called_command =~ s/-/_/g;
+		
+		if (defined $COMMAND_ALIAS{$called_command}) {
+			$command = $COMMAND_ALIAS{$called_command};
+		} elsif (defined $COMMAND_ALIAS{lc($called_command)}) {
+			$command = $COMMAND_ALIAS{lc($called_command)};
+		} else {$command = $called_command};
+		if (!defined $COMMAND_NAMES{$command} && defined $COMMAND_NAMES{lc($command)}) {
+			$command = lc($command);
+		}
+		if (defined $COMMAND_NAMES{$command}) {
+		
+			if ($COMMAND_NAMES{$command} =~ /pm/) {
+				require "premethyst_commands/$command.pm";
+				import "premethyst_commands::$command", "$command";
+				if ($command eq "defaults") {push @ARGV, $DEFAULTS_FILE};
+				\&$command(@ARGV);
+			} elsif ($COMMAND_NAMES{$command} =~ /py/) {
+				$args = join(" ", @ARGV);
+				system("$Pscript $RealBin/premethyst_commands/$command.py $args");
+			} elsif ($COMMAND_NAMES{$command} =~ /r/) {
+				$args = join(" ", @ARGV);
+				system("$Rscript $RealBin/premethyst_commands/$command.r $args");
+			}
+		} else {
+			$command =~ s/_/-/g;
+			die "ERROR: There is no command '$command', verify the command call name.\n$die";
+		}
+	}
+} else {
+	die $die;
+}
+
+# COMMAND ALIASES & DESCRIPTIONS
+
+sub load_aliases {
+	
+	# Alias structure:
+	# The list of aliases MUST be all lower case and only use underscores (not dashes)
+	# The command name that the alias refers to MUST be the EXACT command name,
+	# meaning the name of the package / perl module / python script / etc...
+	
+	foreach $alias ("trim", "fq_trim", "trim_fq", "trim_fastq") {$COMMAND_ALIAS{$alias} = "fastq_trim"};
+	foreach $alias ("aln", "align", "fq_align", "align_fq", "align_fastq") {$COMMAND_ALIAS{$alias} = "fastq_align"};
+	foreach $alias ("check_defaults", "defaults_check") {$COMMAND_ALIAS{$alias} = "defaults"};
+	foreach $alias ("rmdup", "rmdup_bam") {$COMMAND_ALIAS{$alias} = "bam_rmdup"};
+	foreach $alias ("complexity") {$COMMAND_ALIAS{$alias} = "plot_complexity"};
+	foreach $alias ("extract", "extract_calls", "bam2calls", "extract_bam") {$COMMAND_ALIAS{$alias} = "bam_extract"};
+	foreach $alias ("calls_to_h5") {$COMMAND_ALIAS{$alias} = "calls2h5"};
+	foreach $alias ("context", "extract_context") {$COMMAND_ALIAS{$alias} = "context_extract"};
+	foreach $alias ("genome_context", "context_fasta") {$COMMAND_ALIAS{$alias} = "fasta_context"};
+	
+}
+
+sub load_descriptions {
+	
+	# Command Decription Structure:
+	# The call must be the EXACT match to the command file / package / etc...
+	# Provide a brief description of its function
+	
+	$COMMAND_DESCRIPTOR{"fastq_trim"} = "Fastq trimming command";
+	$COMMAND_DESCRIPTOR{"fastq_align"} = "Wrapper to align sciMET fastq files using BSBolt";
+	$COMMAND_DESCRIPTOR{"defaults"} = "List defaults being used from config file";
+	$COMMAND_DESCRIPTOR{"bam_rmdup"} = "Removes PCR duplicates from a nsrt bam file";
+	$COMMAND_DESCRIPTOR{"plot_complexity"} = "Plots complexity after rmdup";
+	$COMMAND_DESCRIPTOR{"bam_extract"} = "Extract methylaiton calls from a nsrt, rmdup, bsbolt bam file";
+	$COMMAND_DESCRIPTOR{"calls2h5"} = "Packages cellcalls into an h5 file for amethyst processing";
+	$COMMAND_DESCRIPTOR{"context_extract"} = "Extract a specific context from cellCalls";
+	$COMMAND_DESCRIPTOR{"fasta_context"} = "Generate a bed of sites for a specific context in a fasta";
+	
+}
