@@ -46,7 +46,7 @@ Append additional naming criteria, extract specific contexts to be included. Rem
 premethyst rename-calls -P (name_prefix) -S (name_suffix) [cellCalls Folder]
 
 # Filter to specific criteria
-premethyst filter-calls (options)
+premethyst filter-calls (options) [cellInfo file] [input cellCall folder] [filtered cellCall folder]
 
 # Extract an additional context, e.g. GCH
 premethyst context-extract -O MyOut -C CH -N GCH -B myGCsites.bed -X HCH MyIn
