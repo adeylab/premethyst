@@ -7,10 +7,13 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:", \%opt);
+getopts("O:t:sm:G:C:N:P:p:", \%opt);
 
 # dfaults
 $minSize = 10000000;
+$minReads = 10000;
+$maxPct = 100;
+$minPct = 0;
 
 $die = "
 
@@ -19,13 +22,23 @@ premethyst bam-extract (options) [rmdup & filtered bam file, name-sorted]
 
 Extracts methylation from a BSBolt bam and outputs a cellCall folder.
 
+Strongly recommended to run with the -C [compelxity file] and -N [cutoff]
+options, otherwise noise barcodes will be processed.
+
+Alternatively, the bam file can be pre-filtered to exclude noise
+barcodes; however -C/-N is much simpler.
+
 Options:
    -O   [STR]   Out prefix
    -m   [INT]   Minimum chromosome size to retain (def = $minSize)
                   Used to exclude random and other small contigs
    -t   [INT]   Max number of concurrent threads (def = 1)
-   -C   [STR]   List of cellIDs to include (use instead of pre-
-                  filtering bam file)
+   -C   [STR]   Complexity.txt file from rmdup (recommened)
+   -N   [INT]   Minimum unique reads per cell to include (def = $minReads)
+                  Note: can be inclusive, additional filtering can
+                        be carried out on the calls folder.
+   -P   [FLT]   Max percent unique reads to include (def = $maxPct)
+   -p   [FLT]   Min percent unique reads to include (def = $minPct)
 
 Executable Commands (from $DEFAULTS_FILE)
    samtools:   $samtools
@@ -34,12 +47,18 @@ Executable Commands (from $DEFAULTS_FILE)
 ";
 
 if (!defined $ARGV[0]) {die $die};
+if (defined $opt{'N'}) {$minReads = $opt{'N'}};
+if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
+if (defined $opt{'p'}) {$minPct = $opt{'p'}};
 
 if (defined $opt{'C'}) {
 	open IN, "$opt{'C'}";
-	while ($cellID = <IN>) {
-		chomp $cellID;
-		$INCLUDE{$cellID} = 1;
+	while ($l = <IN>) {
+		chomp $l;
+		@P = split(/\t/, $l);
+		if ($P[3] >= $minReads && $P[4] <= $maxPct && $P[4] >= $minPct) {
+			$INCLUDE{$P[1]} = 1;
+		}
 	} close IN;
 }
 
