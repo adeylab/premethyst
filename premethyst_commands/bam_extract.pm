@@ -46,7 +46,7 @@ Executable Commands (from $DEFAULTS_FILE)
    
 ";
 
-if (!defined $ARGV[0]) {die $die};
+if (!defined $ARGV[0] || !defined $opt{'O'}) {die $die};
 if (defined $opt{'N'}) {$minReads = $opt{'N'}};
 if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
 if (defined $opt{'p'}) {$minPct = $opt{'p'}};

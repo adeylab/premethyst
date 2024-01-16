@@ -11,8 +11,8 @@ getopts("O:C:G:z", \%opt);
 
 $die = "
 
-premethyst context-extract (options) -C [Req: Context] -G [genome fasta] -O [output prefix]
-      or   context
+premethyst fasta-context (options) -C [Req: Context] -G [genome fasta] -O [output prefix]
+      or   genome-context
 
 Options:
 

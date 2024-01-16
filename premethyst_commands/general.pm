@@ -8,13 +8,15 @@ use Exporter "import";
 	"load_defaults",
 		qw($ref_shortcuts),qw(@BASES),qw(%REF),qw(%VAR),qw($gzip),qw($zcat),
 		qw($pigz),qw($samtools),qw($bedtools),qw($Rscript),qw($Pscript),
-		qw($slack),qw($trim_galore),qw($bsbolt)
+		qw($slack),qw($trim_galore),qw($bsbolt),qw($premethyst),
+		qw($DEFAULTS_FILE)
 );
 
 # UTILITY COMMANDS
 
 sub load_defaults {
 	# Some global ones that are not configured
+	$DEFAULTS_FILE = $_[0];
 	$ref_shortcuts = "";
 	@BASES = ("A", "C", "G", "T", "N");
 	%REF; %VAR; %LOG_DIR;

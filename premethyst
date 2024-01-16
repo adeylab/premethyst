@@ -142,11 +142,12 @@ sub load_aliases {
 	foreach $alias ("rmdup", "rmdup_bam") {$COMMAND_ALIAS{$alias} = "bam_rmdup"};
 	foreach $alias ("complexity") {$COMMAND_ALIAS{$alias} = "plot_complexity"};
 	foreach $alias ("extract", "extract_calls", "bam2calls", "extract_bam") {$COMMAND_ALIAS{$alias} = "bam_extract"};
-	foreach $alias ("calls_to_h5") {$COMMAND_ALIAS{$alias} = "calls2h5"};
+	foreach $alias ("calls_to_h5", "export", "calls_export", "export_h5") {$COMMAND_ALIAS{$alias} = "calls2h5"};
 	foreach $alias ("context", "extract_context") {$COMMAND_ALIAS{$alias} = "context_extract"};
 	foreach $alias ("genome_context", "context_fasta") {$COMMAND_ALIAS{$alias} = "fasta_context"};
 	foreach $alias ("rename", "rename_calls") {$COMMAND_ALIAS{$alias} = "calls_rename"};
 	foreach $alias ("filter", "filter_calls") {$COMMAND_ALIAS{$alias} = "calls_filter"};
+	foreach $alias ("run", "pipeline") {$COMMAND_ALIAS{$alias} = "run_pipeline"};
 }
 
 sub load_descriptions {
@@ -166,4 +167,5 @@ sub load_descriptions {
 	$COMMAND_DESCRIPTOR{"fasta_context"} = "Generate a bed of sites for a specific context in a fasta";
 	$COMMAND_DESCRIPTOR{"calls_rename"} = "Rename callFiles for future run merging";
 	$COMMAND_DESCRIPTOR{"calls_filter"} = "Filter cellcall files within a folder based on cellinfo criteria";
+	$COMMAND_DESCRIPTOR{"run_pipeline"} = "Runs all steps in the premethyst workflow using a config file";
 }
