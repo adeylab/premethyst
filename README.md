@@ -7,6 +7,9 @@ Trim Galore (https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/)
 BSBolt (https://github.com/NuttyLogic/BSBolt)
 
 Samtools (https://www.htslib.org/)
+
+Recommended: unidex (https://github.com/adeylab/unidex) for demultiplexing
+
 ## Setup
 Download the repository and add the premethyst executable to your path. Premethyst has a number of default parameters that you can set using the configuration file which should be in the same directory as the premethyst executable and can be edited as needed.
 ## Processing Workflow
