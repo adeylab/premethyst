@@ -32,7 +32,7 @@ Options (at least 1 required):
 
 ";
 
-if (!defined $ARGV[0] || (!defined $opt{'P'} || !defined $opt{'S'})) {die $die};
+if (!defined $ARGV[0] || (!defined $opt{'P'} && !defined $opt{'S'})) {die $die};
 
 opendir(CCD, "$ARGV[0]");
 @CELLCALLS = readdir(CCD);

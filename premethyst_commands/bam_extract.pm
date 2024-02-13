@@ -17,7 +17,7 @@ $minPct = 0;
 
 $die = "
 
-premethyst bam-extract (options) [rmdup & filtered bam file, name-sorted]
+premethyst bam-extract (options) -O [out prefix (req)] [rmdup & filtered bam file, name-sorted]
       or   extract
 
 Extracts methylation from a BSBolt bam and outputs a cellCall folder.
@@ -46,7 +46,7 @@ Executable Commands (from $DEFAULTS_FILE)
    
 ";
 
-if (!defined $ARGV[0] || !defined $opt{'O'}) {die $die};
+if (!defined $ARGV[0] || (!defined $opt{'O'} && !defined $opt{'s'})) {die $die};
 if (defined $opt{'N'}) {$minReads = $opt{'N'}};
 if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
 if (defined $opt{'p'}) {$minPct = $opt{'p'}};
@@ -227,8 +227,8 @@ if (!defined $opt{'s'}) { # main thread
 	}
 
 	$AllCov = $CG_bases+$CH_bases;
-	$CGpct = sprintf("%.2f", ($CG_meth/$CG_bases)*100);
-	$CHpct = sprintf("%.2f", ($CH_meth/$CH_bases)*100);
+	if ($CG_bases>0) {$CGpct = sprintf("%.2f", ($CG_meth/$CG_bases)*100)} else {$CGpct = "0.00"};
+	if ($CH_bases>0) {$CHpct = sprintf("%.2f", ($CH_meth/$CH_bases)*100)} else {$CHpct = "0.00"};
 	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct";
 
 	system("echo '$cellInfo' > $ARGV[0]/$ARGV[1].complete");

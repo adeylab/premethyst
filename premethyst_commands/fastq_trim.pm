@@ -31,9 +31,9 @@ The command will continue to run, producing additional
 QC stats that are not required prior to alignment.
 
 Options:
--O   [STR]   Output Prefix
--1   [STR]   Read1 fastq
--2   [STR]   Read2 fastq
+-O   [STR]   Output Prefix (req)
+-1   [STR]   Read1 fastq (req)
+-2   [STR]   Read2 fastq (req)
 -m   [INT]   Min read length (def = $min_RL)
 -t   [INT]   Threads to use (def = $threads)
 -e   [INT]   Trim bases from the end of read 2 after adapter trim (def = $r2_trim)
@@ -59,7 +59,7 @@ if (defined $opt{'e'}) {$r2_trim = $opt{'e'}};
 if (defined $opt{'a'}) {$a1 = $opt{'a'}};
 if (defined $opt{'b'}) {$a2 = $opt{'b'}};
 
-if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: For trim galore mode, reads 1 and 2 must be specified.\n$die"};
+if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: Reads 1 and 2 must be specified.\n$die"};
 
 if (defined $opt{'u'}) {
 	if ($r2_trim > 0) {
@@ -74,6 +74,8 @@ if (defined $opt{'u'}) {
 		$trim_command = "$trim_galore -a $a1 -a2 $a2 -j $threads --paired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
 	}
 }
+
+system("echo 'RUNNING: $trim_command' >> $opt{'O'}.trim.log");
 system($trim_command);
 
 # rename to output prefix names
@@ -105,6 +107,7 @@ open IN, "$zcat $opt{'1'} |";
 while ($tag = <IN>) {
 	chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
 	$BARC_IN_ct{$tag}++;
+	$BARC_OUT_ct{$tag} = 0;
 	$null = <IN>; $null = <IN>; $null = <IN>;
 } close IN;
 
@@ -115,19 +118,21 @@ while ($tag = <IN>) {
 	$null = <IN>; $null = <IN>; $null = <IN>;
 } close IN;
 
-open IN, "$zcat $opt{'O'}.trimmed.unpaired.R1.fq.gz |";
-while ($tag = <IN>) {
-	chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
-	$BARC_R1_up{$tag}++;
-	$null = <IN>; $null = <IN>; $null = <IN>;
-} close IN;
+if (defined $opt{'u'}) {
+	open IN, "$zcat $opt{'O'}.trimmed.unpaired.R1.fq.gz |";
+	while ($tag = <IN>) {
+		chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
+		$BARC_R1_up{$tag}++;
+		$null = <IN>; $null = <IN>; $null = <IN>;
+	} close IN;
 
-open IN, "$zcat $opt{'O'}.trimmed.unpaired.R2.fq.gz |";
-while ($tag = <IN>) {
-	chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
-	$BARC_R2_up{$tag}++;
-	$null = <IN>; $null = <IN>; $null = <IN>;
-} close IN;
+	open IN, "$zcat $opt{'O'}.trimmed.unpaired.R2.fq.gz |";
+	while ($tag = <IN>) {
+		chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
+		$BARC_R2_up{$tag}++;
+		$null = <IN>; $null = <IN>; $null = <IN>;
+	} close IN;
+}
 
 open RPT, ">$opt{'O'}.trimmed.stats.txt";
 foreach $barc (keys %BARC_IN_ct) {

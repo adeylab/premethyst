@@ -25,6 +25,7 @@ sub load_defaults {
 		while ($def = <DEF>) {
 			if ($def !~ /^#/) {
 				chomp $def;
+				$def =~ s/\r//g;
 				($var,$val) = split(/=/, $def);
 				if ($var =~ /_ref$/) { # reference shortcuts
 					$refID = $var; $refID =~ s/_ref$//;

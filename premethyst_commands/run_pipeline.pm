@@ -76,12 +76,16 @@ if (!defined $OPTS{'global'}{'D'}) {
 	die "\nERROR: Config file must contain global output folder as 'global_D=[pfx]'\n$die";
 }
 if (-d "$OPTS{'global'}{'D'}") {
-	print STDERR "\nWARNING: $OPTS{'global'}{'D'} directory exists! Will overwrite contents unless -O is new. Proceeding in 30 seconds.\n";
-	sleep(30)
+	if (defined $opt{'d'}) {
+		print STDERR "\nWARNING: $OPTS{'global'}{'D'} directory exists! Will overwrite contents unless -O is new. DRYRUN - will proceed.\n";
+	} else {
+		print STDERR "\nWARNING: $OPTS{'global'}{'D'} directory exists! Will overwrite contents unless -O is new. Proceeding in 30 seconds.\n";
+		sleep(30)
+	}
 } else {
 	system("mkdir $OPTS{'global'}{'D'}");
 }
-
+if ($OPTS{'global'}{'D'} =~ /\/$/) {$OPTS{'global'}{'D'} =~ s/\/$//};
 
 # set start and end
 if (defined $opt{'S'}) {$start = $opt{'S'}};
@@ -159,7 +163,7 @@ if ($start <= 2 && $end >= 2) {
 		exit;
 	}
 	$options = build_options("align");
-	$command = "$premethyst align $options -O $OPTS{'global'}{'O'} -1 $OPTS{'global'}{'O'}.trimmed.paired.R1.fq.gz -2 $OPTS{'global'}{'O'}.trimmed.paired.R2.fq.gz";
+	$command = "$premethyst align $options -O $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'} -1 $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.trimmed.paired.R1.fq.gz -2 $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.trimmed.paired.R2.fq.gz";
 	print LOG "Command: $command\n";
 	if (defined $opt{'r'}) {system("$slack -c \"$ts premethyst run $ARGV[0], starting STEP 2: ALIGN.\nCommand:\n\t$command\" $opt{'r'}")};
 	if (!defined $opt{'d'}) {system("$command")};
@@ -215,9 +219,9 @@ if ($start <= 5 && $end >= 5) {
 	}
 	if (defined $OPTS{'extract'}) {
 		$options = build_options("extract");
-		$command = "$premethyst extract $options $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.bbrd.q10.nsrt.bam";
+		$command = "$premethyst extract $options -O $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'} $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.bbrd.q10.nsrt.bam";
 	} else {
-		$command = "$premethyst extract $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.bbrd.q10.nsrt.bam";
+		$command = "$premethyst extract -O $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'} $OPTS{'global'}{'D'}/$OPTS{'global'}{'O'}.bbrd.q10.nsrt.bam";
 	}
 	print LOG "Command: $command\n";
 	if (defined $opt{'r'}) {system("$slack -c \"$ts premethyst run $ARGV[0], starting STEP 5: EXTRACT.\nCommand:\n\t$command\" $opt{'r'}")};
@@ -367,7 +371,8 @@ align_t=24
 align_o=8
 #
 ## STEP 3: RMDUP (stepName=rmdup)
-## Use defaults.
+## Sorting threads
+rmdup_t=12
 #
 ## STEP 4: PLOT COMPLEXITY (stepName=cplx)
 ## Use defaults.

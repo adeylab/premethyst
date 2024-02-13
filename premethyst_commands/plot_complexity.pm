@@ -73,7 +73,6 @@ if (!defined $opt{'O'}) {$opt{'O'} = $ARGV[0]};
 $opt{'O'} =~ s/\.txt$//;
 
 read_complexity($ARGV[0]);
-load_triplet2ascii();
 
 open OUT, ">$opt{'O'}.plot.txt";
 foreach $cellID (keys %CELLID_complexity) {
@@ -156,6 +155,25 @@ ggsave(plot=PLT,filename=\"$opt{'O'}.hist.pdf\",width=$width,height=$height)
 close R;
 
 system("$Rscript $opt{'O'}.plot.r");
+
+sub read_complexity {
+	%CELLID_uniq_reads = ();
+	%CELLID_raw_reads = ();
+	%CELLID_complexity = ();
+	%CELLID_complexity_rank = ();
+	@COMPLEXITY_FILES = split(/,/, $_[0]);
+	foreach $complexity_file (@COMPLEXITY_FILES) {
+		open COMPL, "$complexity_file";
+		while ($comp_line = <COMPL>) {
+			chomp $comp_line;
+			($num,$cellID,$raw,$uniq,$pct) = split(/\t/, $comp_line);
+			$CELLID_complexity_rank{$cellID} = $num;
+			$CELLID_uniq_reads{$cellID} = $uniq;
+			$CELLID_raw_reads{$cellID} = $raw;
+			$CELLID_complexity{$cellID} = $pct;
+		} close COMPL;
+	}
+}
 
 }
 1;

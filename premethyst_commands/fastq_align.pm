@@ -42,8 +42,9 @@ $ref_shortcuts
 -X           Retain coord sorted bam (def is only name sorted)
 
 Executable Commands (from $DEFAULTS_FILE)
-   bsbolt:  $bsbolt
-   slack:   $slack
+   bsbolt:   $bsbolt
+   slack:    $slack
+   samtools: $samtools
 	
 ";
 
