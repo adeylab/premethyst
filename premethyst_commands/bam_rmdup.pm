@@ -7,9 +7,10 @@ use Exporter "import";
 
 sub bam_rmdup {
 
-getopts("O:t:q:N", \%opt);
+getopts("O:t:q:NT:", \%opt);
 
 $threads = 1;
+$in_threads = 1;
 $minq = 10;
 
 $die = "
@@ -25,6 +26,7 @@ Outputs a name-sorted bam.
 Options:
    -O   [STR]   Output prefix (def = input bam prefix)
    -t   [INT]   Threads for the sorting process. (def = $threads)
+   -T   [INT]   Threads for the bam file read-in. (def = $in_threads)
    -q   [INT]   Min read alignment quality (def = $minq)
    -N           Do NOT name sort (coord sort; def = nsrt)
 
@@ -45,6 +47,7 @@ if (!defined $opt{'O'}) {
 
 if (defined $opt{'q'}) {$minq = $opt{'q'}};
 if (defined $opt{'t'}) {$threads = $opt{'t'}};
+if (defined $opt{'T'}) {$in_threads = $opt{'T'}};
 
 if (defined $opt{'N'}) {
 	open OUT, "| $samtools view -bSu - | $samtools sort -@ $threads -T $opt{'O'}.TMP -m 4G - > $opt{'O'}.bbrd.q10.bam";
@@ -56,7 +59,7 @@ open HEAD, "$samtools view -H $ARGV[0] |";
 while ($l = <HEAD>){print OUT "$l"};
 close HEAD;
 
-open IN, "$samtools view -q $minq $ARGV[0] |";
+open IN, "$samtools view -@ $in_threads -q $minq $ARGV[0] |";
 
 $currentBarc = "null";
 $total_aligned = 0;

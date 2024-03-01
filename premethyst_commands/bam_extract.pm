@@ -7,13 +7,14 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:N:P:p:", \%opt);
+getopts("O:t:sm:G:C:N:P:p:T:", \%opt);
 
 # dfaults
 $minSize = 10000000;
 $minReads = 10000;
 $maxPct = 100;
 $minPct = 0;
+$in_threads = 1;
 
 $die = "
 
@@ -32,7 +33,8 @@ Options:
    -O   [STR]   Out prefix
    -m   [INT]   Minimum chromosome size to retain (def = $minSize)
                   Used to exclude random and other small contigs
-   -t   [INT]   Max number of concurrent threads (def = 1)
+   -t   [INT]   Max number of concurrent extract threads (def = 1)
+   -T   [INT]   Number of threads for reading input bam (def = $in_threads)
    -C   [STR]   Complexity.txt file from rmdup (recommened)
    -N   [INT]   Minimum unique reads per cell to include (def = $minReads)
                   Note: can be inclusive, additional filtering can
@@ -50,6 +52,7 @@ if (!defined $ARGV[0] || (!defined $opt{'O'} && !defined $opt{'s'})) {die $die};
 if (defined $opt{'N'}) {$minReads = $opt{'N'}};
 if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
 if (defined $opt{'p'}) {$minPct = $opt{'p'}};
+if (defined $opt{'T'}) {$in_threads = $opt{'T'}};
 
 if (defined $opt{'C'}) {
 	open IN, "$opt{'C'}";
@@ -85,7 +88,7 @@ if (!defined $opt{'s'}) { # main thread
 	$ts = localtime(time);
 	print LOG "$ts\tParsing bam file: $ARGV[0]\n";
 	
-	open IN, "$samtools view $ARGV[0] |";
+	open IN, "$samtools view -@ $in_threads $ARGV[0] |";
 	$currentBarc = "null";
 	$methCol = "null";
 	

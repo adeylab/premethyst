@@ -7,10 +7,11 @@ use Exporter "import";
 
 sub fastq_align {
 
-getopts("O:1:2:t:o:R:r:X", \%opt);
+getopts("O:1:2:t:o:R:r:XM:", \%opt);
 
 $threads = 1;
 $o_threads = 1;
+$sort_mem = "4G";
 
 $die = "
 
@@ -36,6 +37,7 @@ $ref_shortcuts
 -t   [INT]   Number of threads for alignment.
 -o   [INT]   Number of threads for output.
                (also thread count for sorting by name)
+-M   [#G]    GB used per thread in sorting (def = $sort_mem)
 
 -r   [STR]   Report alignment stats to slack channel
               Requires 'slack' as cli callable
@@ -61,6 +63,7 @@ if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: Reads 1 and 2 MUST 
 if (!defined $opt{'O'}) {die "\nERROR: Specify output as -O\n$die"};
 if (defined $opt{'t'}) {$threads = $opt{'t'}};
 if (defined $opt{'o'}) {$o_threads = $opt{'o'}};
+if (defined $opt{'M'}) {$sort_mem = $opt{'M'}};
 
 open LOG, ">$opt{'O'}.bsbolt.log";
 $ts = localtime(time);
@@ -83,7 +86,7 @@ if (defined $opt{'r'}) {
 $ts = localtime(time);
 print LOG "$ts\tSorting by read name.\n";
 
-$sort_call = "$samtools sort -@ $o_threads -n -m 2G $opt{'O'}.bam > $opt{'O'}.nsrt.bam";
+$sort_call = "$samtools sort -@ $o_threads -n -m $sort_mem $opt{'O'}.bam > $opt{'O'}.nsrt.bam";
 print LOG "Command: $sort_call\n";
 system("$sort_call");
 

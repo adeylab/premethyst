@@ -141,8 +141,11 @@ foreach $barc (keys %BARC_IN_ct) {
 	if (!defined $BARC_R2_up{$barc}) {$BARC_R2_up{$barc} = 0};
 	$pct1u = sprintf("%.2f", ($BARC_R1_up{$barc}/$BARC_IN_ct{$barc})*100);
 	$pct2u = sprintf("%.2f", ($BARC_R2_up{$barc}/$BARC_IN_ct{$barc})*100);
-	
-	print RPT "$barc\t$BARC_IN_ct{$barc}\t$BARC_OUT_ct{$barc}\t$pct\t$BARC_R1_up{$barc}\t$pct1u\t$BARC_R2_up{$barc}\t$pct2u\n";
+	if (defined $opt{'u'}) {
+		print RPT "$barc\t$BARC_IN_ct{$barc}\t$BARC_OUT_ct{$barc}\t$pct\t$BARC_R1_up{$barc}\t$pct1u\t$BARC_R2_up{$barc}\t$pct2u\n";
+	} else {
+		print RPT "$barc\t$BARC_IN_ct{$barc}\t$BARC_OUT_ct{$barc}\t$pct\n";
+	}
 } close RPT;
 
 exit;
