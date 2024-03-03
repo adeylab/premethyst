@@ -373,6 +373,8 @@ align_o=8
 ## STEP 3: RMDUP (stepName=rmdup)
 ## Sorting threads
 rmdup_t=12
+## Input threads
+rmdup_T=8
 #
 ## STEP 4: PLOT COMPLEXITY (stepName=cplx)
 ## Use defaults.
@@ -382,6 +384,8 @@ rmdup_t=12
 extract_N=10000
 ## Threads, recommended to use no more than 12.
 extract_t=12
+## Input threads
+extract_T=8
 #
 ## STEP 6: MODIFY CALL FOLDER (optional steps)
 ## 6A) Rename cellIDs (stepName=rename)

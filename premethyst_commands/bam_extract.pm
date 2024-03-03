@@ -182,11 +182,11 @@ if (!defined $opt{'s'}) { # main thread
 	
 } else { # subthread
 	open IN, "$ARGV[0]/$ARGV[1].meth";
-	open CG, "| sort -k1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
-	open CH, "| sort -k1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
+	open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
+	open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
 	while ($l = <IN>) {
 		chomp $l;
-		@P = split(/\s/, $l);
+		@P = split(/\t/, $l);
 		
 		%read_cov = (); %read_meth = ();
 		if (defined $P[3]) { # pair

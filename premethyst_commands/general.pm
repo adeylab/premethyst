@@ -9,7 +9,9 @@ use Exporter "import";
 		qw($ref_shortcuts),qw(@BASES),qw(%REF),qw(%VAR),qw($gzip),qw($zcat),
 		qw($pigz),qw($samtools),qw($bedtools),qw($Rscript),qw($Pscript),
 		qw($slack),qw($trim_galore),qw($bsbolt),qw($premethyst),
-		qw($DEFAULTS_FILE)
+		qw($DEFAULTS_FILE),
+	"read_annot",
+		qw(%CELLID_annot),qw(%ANNOT_count),qw($annot_count),qw(@ANNOT_FILES)
 );
 
 # UTILITY COMMANDS
@@ -60,6 +62,23 @@ sub load_defaults {
 	if (!defined $trim_galore) {$trim_galore = "trim_galore"};
 	if (!defined $bsbolt) {$bsbolt = "bsbolt"};
 	if (!defined $premethyst) {$premethyst = "premethyst"};
+}
+
+sub read_annot {
+	%CELLID_annot = (); %ANNOT_count = (); $annot_count = 0;
+	@ANNOT_FILES = split(/,/, $_[0]);
+	foreach $annot_file (@ANNOT_FILES) {
+		open ANNOT, "$annot_file";
+		while ($annot_line = <ANNOT>) {
+			chomp $annot_line;
+			($annot_cellID,$annot) = split(/\t/, $annot_line);
+			$CELLID_annot{$annot_cellID} = $annot;
+			if (!defined $ANNOT_count{$annot}) {
+				$annot_count++;
+				$ANNOT_count{$annot}=0;
+			}
+		} close ANNOT;
+	}
 }
 
 1;
