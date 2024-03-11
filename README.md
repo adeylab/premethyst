@@ -45,11 +45,12 @@ premethyst plot-complexity [options] [complexity file(s) can be comma separated]
 ```
 ### Extract Methylation Calls
 Extract mC calls to generate a folder of cellCall files for each cell.
+It is recommended to filter to a subset of cell barcodes based on the complexity plot, and also to be inclusive at this stage. More stringent coverage filtering will be done on the resulting cell call folder using the number of CG and/or CH sites covered per cell.
 ```
 premethyst bam-extract (options) [rmdup & filtered bam file, name-sorted]
 ```
 ### Further Filter and Adjust CellCall Folder
-Append additional naming criteria, extract specific contexts to be included. Remove alternative contexts. Further filer to remove certain cells. Additional filtering can be carried out later in amethyst.
+Append additional naming criteria, extract specific contexts to be included. Remove alternative contexts. Further filer to remove certain cells. Additional filtering can be carried out later in amethyst. It is recommended to filter to a minimum CG and/or CH site coverage here using the cellInfo file generated during the prior extraction step.
 ```
 # Add on a name for cell IDs for future multiplexing
 premethyst rename-calls -P (name_prefix) -S (name_suffix) [cellCalls Folder]
