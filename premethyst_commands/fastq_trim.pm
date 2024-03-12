@@ -14,11 +14,11 @@ $r2_trim = 0;
 $a1 = "CTATCTCTTATA";
 $a2 = "AGATCGGAAGAGC";
 
-getopts("O:1:2:m:t:e:ur:a:b:", \%opt);
+getopts("O:1:2:m:t:e:ur:a:b:U:", \%opt);
 
 $die = "
 
-premethyst fastq-trim (options) -O OutputPrefix -1 read1.fq.gz -2 read2.fq.gz
+premethyst fastq-trim (options) -O OutputPrefix (-1 read1.fq.gz -2 read2.fq.gz) OR (-U read1.fq.gz)
        or  trim
 
 Runs trim galore with settings specified for sciMETv2/3.
@@ -30,19 +30,23 @@ file, at which point subsequent processing can happen.
 The command will continue to run, producing additional
 QC stats that are not required prior to alignment.
 
+Can be run for sciMETv3 Illumina Mode (-1 and -2) or
+with the Ultima sequencing sciMETv3 design (-U).
+
 Options:
 -O   [STR]   Output Prefix (req)
--1   [STR]   Read1 fastq (req)
--2   [STR]   Read2 fastq (req)
+-1   [STR]   Read1 fastq (req if Illumina)
+-2   [STR]   Read2 fastq (req if Illumina)
+-U   [STR]   Ultima unpaired read (req if Ultima)
 -m   [INT]   Min read length (def = $min_RL)
 -t   [INT]   Threads to use (def = $threads)
 -e   [INT]   Trim bases from the end of read 2 after adapter trim (def = $r2_trim)
                (set to 0 for SL preps since Hmer is not incorporated, 10 for LA)
--u           Retain unpaired reads (def = discard)
+-u           Retain unpaired reads (Illumina; def = discard)
 -r   [STR]   Report to specified slack channel when trimming is complete.
 
--a   [STR]   Adapter 1 sequence (def = $a1)
--b   [STR]   Adapter 2 sequence (def = $a2)
+-a   [STR]   Adapter 1 sequence (Illumina only; def = $a1)
+-b   [STR]   Adapter 2 sequence (Both; def = $a2)
 
 Executable Commands (from $DEFAULTS_FILE)
    trim_galore: $trim_galore
@@ -58,39 +62,55 @@ if (defined $opt{'t'}) {$threads = $opt{'t'}};
 if (defined $opt{'e'}) {$r2_trim = $opt{'e'}};
 if (defined $opt{'a'}) {$a1 = $opt{'a'}};
 if (defined $opt{'b'}) {$a2 = $opt{'b'}};
+if (defined $opt{'U'} && (defined $opt{'1'} || defined $opt{'2'})) {
+	die "\nEROR: Cannot specify Ultima reads (-U) and Illumina reads (-1 or -2) in the same command!\n$die";
+}
 
-if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: Reads 1 and 2 must be specified.\n$die"};
+if (!defined $opt{'U'}) { # Illumina mode, paired reads
+	if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: Reads 1 and 2 must be specified.\n$die"};
 
-if (defined $opt{'u'}) {
-	if ($r2_trim > 0) {
-		$trim_command = "$trim_galore -a $a1 -a2 $a2 --three_prime_clip_R2 $r2_trim -j $threads --paired --retain_unpaired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+	if (defined $opt{'u'}) {
+		if ($r2_trim > 0) {
+			$trim_command = "$trim_galore -a $a1 -a2 $a2 --three_prime_clip_R2 $r2_trim -j $threads --paired --retain_unpaired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		} else {
+			$trim_command = "$trim_galore -a $a1 -a2 $a2 -j $threads --paired --retain_unpaired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		}
 	} else {
-		$trim_command = "$trim_galore -a $a1 -a2 $a2 -j $threads --paired --retain_unpaired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		if ($r2_trim > 0) {
+			$trim_command = "$trim_galore -a $a1 -a2 $a2 --three_prime_clip_R2 $r2_trim -j $threads --paired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		} else {
+			$trim_command = "$trim_galore -a $a1 -a2 $a2 -j $threads --paired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		}
 	}
-} else {
+} else { # Ultima Mode, single-end
 	if ($r2_trim > 0) {
-		$trim_command = "$trim_galore -a $a1 -a2 $a2 --three_prime_clip_R2 $r2_trim -j $threads --paired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		$trim_command = "$trim_galore -a $a2 --three_prime_clip_R2 $r2_trim -j $threads $opt{'U'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
 	} else {
-		$trim_command = "$trim_galore -a $a1 -a2 $a2 -j $threads --paired $opt{'1'} $opt{'2'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
+		$trim_command = "$trim_galore -a $a2 -j $threads $opt{'U'} >> $opt{'O'}.trim.log 2>> $opt{'O'}.trim.log";
 	}
+
 }
 
 system("echo 'RUNNING: $trim_command' >> $opt{'O'}.trim.log");
 system($trim_command);
 
 # rename to output prefix names
-$out1 = $opt{'1'}; $out1 =~ s/\.fq\.gz$//; $out1 .= "_val_1.fq.gz";
-$out2 = $opt{'2'}; $out2 =~ s/\.fq\.gz$//; $out2 .= "_val_2.fq.gz";
-if  (defined $opt{'u'}) {
-	$out1u = $opt{'1'}; $out1u =~ s/\.fq\.gz$//; $out1u .= "_unpaired_1.fq.gz";
-	$out2u = $opt{'2'}; $out2u =~ s/\.fq\.gz$//; $out2u .= "_unpaired_2.fq.gz";
-}
-
-system("mv $out1 $opt{'O'}.trimmed.paired.R1.fq.gz");
-system("mv $out2 $opt{'O'}.trimmed.paired.R2.fq.gz");
-if (defined $opt{'u'}) {
-	system("mv $out1u $opt{'O'}.trimmed.unpaired.R1.fq.gz");
-	system("mv $out2u $opt{'O'}.trimmed.unpaired.R2.fq.gz");
+if (defined $opt{'1'}) { # Illumina
+	$out1 = $opt{'1'}; $out1 =~ s/\.fq\.gz$//; $out1 .= "_val_1.fq.gz";
+	$out2 = $opt{'2'}; $out2 =~ s/\.fq\.gz$//; $out2 .= "_val_2.fq.gz";
+	if  (defined $opt{'u'}) {
+		$out1u = $opt{'1'}; $out1u =~ s/\.fq\.gz$//; $out1u .= "_unpaired_1.fq.gz";
+		$out2u = $opt{'2'}; $out2u =~ s/\.fq\.gz$//; $out2u .= "_unpaired_2.fq.gz";
+	}
+	system("mv $out1 $opt{'O'}.trimmed.paired.R1.fq.gz");
+	system("mv $out2 $opt{'O'}.trimmed.paired.R2.fq.gz");
+	if (defined $opt{'u'}) {
+		system("mv $out1u $opt{'O'}.trimmed.unpaired.R1.fq.gz");
+		system("mv $out2u $opt{'O'}.trimmed.unpaired.R2.fq.gz");
+	}
+} else { # Ultima
+	$out = $opt{'U'}; $out =~ s/\.fq\.gz$//; $out .= "_val.fq.gz";
+	system("mv $out1 $opt{'O'}.trimmed.fq.gz");
 }
 
 # write trimming complete file to note further processing can happen
@@ -103,7 +123,11 @@ if (defined $opt{'r'}) {
 
 # use single core to get stats on the trim in barcode-aware manner.
 %BARC_IN_ct = (); %BARC_OUT_ct = (); %BARC_R1_up = (); %BARC_R2_up = ();
-open IN, "$zcat $opt{'1'} |";
+if (defined $opt{'1'}) {
+	open IN, "$zcat $opt{'1'} |";
+} else {
+	open IN, "$zcat $opt{'U'} |";
+}
 while ($tag = <IN>) {
 	chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
 	$BARC_IN_ct{$tag}++;
@@ -111,7 +135,11 @@ while ($tag = <IN>) {
 	$null = <IN>; $null = <IN>; $null = <IN>;
 } close IN;
 
-open IN, "$zcat $opt{'O'}.trimmed.paired.R1.fq.gz |";
+if (defined $opt{'1'}) {
+	open IN, "$zcat $opt{'O'}.trimmed.paired.R1.fq.gz |";
+} else {
+	open IN, "$zcat $opt{'O'}.trimmed.fq.gz |";
+}
 while ($tag = <IN>) {
 	chomp $tag; $tag =~ s/^@//; $tag =~ s/:.+$//;
 	$BARC_OUT_ct{$tag}++;

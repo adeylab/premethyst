@@ -15,11 +15,14 @@ $sort_mem = "4G";
 
 $die = "
 
-premethyst fastq-align (options) -R [reference path] -O [output prefix] -1 [read1.trimmed.fq.gz] -2 [read2.trimmed.fq.gz]
+premethyst fastq-align (options) -R [reference path] -O [output prefix] -1 [read1.trimmed.fq.gz] (-2 [read2.trimmed.fq.gz])
       or   align
 
-Wrapper for BSBOLT to run alignment of sciMETv2 reads.
+Wrapper for BSBOLT to run alignment of sciMETv2/3 reads.
 reads can be a list that is comma-separated.
+
+If only one read is specified, it assumes it is Ultima
+sequencing where the Tn5 side is read 1.
 
 Will sort output bam by read name.
 
@@ -31,7 +34,7 @@ $ref_shortcuts
 			   
 -O   [STR]   Output prefix (required)
 
--1   [STR]   Trimmed read 1 (paired, req)
+-1   [STR]   Trimmed read 1 (req)
 -2   [STR]   Trimmed read 2 (paired, req)
 
 -t   [INT]   Number of threads for alignment.
@@ -59,7 +62,7 @@ if (!defined $opt{'R'}) {
 	else {$ref = $opt{'R'}};
 }
 
-if (!defined $opt{'1'} || !defined $opt{'2'}) {die "\nERROR: Reads 1 and 2 MUST be specified!\n$die"};
+if (!defined $opt{'1'}) {die "\nERROR: Read 1 MUST be specified!\n$die"};
 if (!defined $opt{'O'}) {die "\nERROR: Specify output as -O\n$die"};
 if (defined $opt{'t'}) {$threads = $opt{'t'}};
 if (defined $opt{'o'}) {$o_threads = $opt{'o'}};
@@ -69,8 +72,11 @@ open LOG, ">$opt{'O'}.bsbolt.log";
 $ts = localtime(time);
 print LOG "$ts\tAlignment called.\n";
 
-#bsbolt Align -F1 ../220727_MB_RPA.trimmed.paired.R2.fq.gz -F2 ../220727_MB_RPA.trimmed.paired.R1.fq.gz -t 44 -OT 2 -T 10 -O bsbolt/220727.bsboltAutoC2T -DB /home/groups/oroaklab/refs/mm10/bsbolt/
-$align_call = "$bsbolt Align -F1 $opt{'2'} -F2 $opt{'1'} -t $threads -OT $o_threads -O $opt{'O'} -DB $ref >> $opt{'O'}.bsbolt.log 2>> $opt{'O'}.bsbolt.log";
+if (defined $opt{'2'}) {
+	$align_call = "$bsbolt Align -F1 $opt{'2'} -F2 $opt{'1'} -t $threads -OT $o_threads -O $opt{'O'} -DB $ref >> $opt{'O'}.bsbolt.log 2>> $opt{'O'}.bsbolt.log";
+} else {
+	$align_call = "$bsbolt Align -F1 $opt{'1'} -t $threads -OT $o_threads -O $opt{'O'} -DB $ref >> $opt{'O'}.bsbolt.log 2>> $opt{'O'}.bsbolt.log";
+}
 
 print LOG "Command: $align_call\n";
 system("$align_call");

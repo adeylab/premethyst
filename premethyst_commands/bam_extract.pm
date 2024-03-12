@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:N:P:p:T:", \%opt);
+getopts("O:t:sm:G:C:N:P:p:T:x", \%opt);
 
 # dfaults
 $minSize = 10000000;
@@ -41,6 +41,7 @@ Options:
                         be carried out on the calls folder.
    -P   [FLT]   Max percent unique reads to include (def = $maxPct)
    -p   [FLT]   Min percent unique reads to include (def = $minPct)
+   -x           Only generate stats, not cellCall files.
 
 Executable Commands (from $DEFAULTS_FILE)
    samtools:   $samtools
@@ -80,6 +81,10 @@ if (!defined $opt{'s'}) { # main thread
 	system("mkdir $opt{'O'}");
 	$ts = localtime(time);
 	print LOG "$ts\tOutput directory created: $opt{'O'}\n";
+	
+	if (defined $opt{'x'}) {
+		print LOG "$ts\tWARNING: -x toggled, will NOT output cov files, only stats files.\n";
+	}
 	
 	# setup threading stuff
 	%QUEUE = ();
@@ -175,15 +180,22 @@ if (!defined $opt{'s'}) { # main thread
 	print LOG "$ts\tAll threads complete! Collating CellInfo.\n";
 
 	foreach $barc (keys %ALL_CELLS) {
-		system("cat $opt{'O'}/$barc.complete >> $opt{'O'}.cellInfo.txt && rm -f $opt{'O'}/$barc.complete $opt{'O'}/$barc.meth")
+		if (defined $opt{'x'}) {
+			system("cat $opt{'O'}/$barc.complete >> $opt{'O'}.cellInfo.txt");
+		} else {
+			system("cat $opt{'O'}/$barc.complete >> $opt{'O'}.cellInfo.txt && rm -f $opt{'O'}/$barc.complete $opt{'O'}/$barc.meth");
+		}
 	}
 
 	exit;
 	
 } else { # subthread
 	open IN, "$ARGV[0]/$ARGV[1].meth";
-	open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
-	open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
+	if (defined $opt{'x'}) {
+		open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
+		open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
+	}
+	$pair_ct = 0; $single_ct = 0; $frag_ct = 0;
 	while ($l = <IN>) {
 		chomp $l;
 		@P = split(/\t/, $l);
@@ -192,8 +204,10 @@ if (!defined $opt{'s'}) { # main thread
 		if (defined $P[3]) { # pair
 			load_read($P[0],$P[1],$P[2]);
 			load_read($P[3],$P[4],$P[5]);
+			$pair_ct++;
 		} else {
 			load_read($P[0],$P[1],$P[2]);
+			$single_ct++;
 		}
 		
 		foreach $coord (keys %read_cov) {
@@ -217,22 +231,24 @@ if (!defined $opt{'s'}) { # main thread
 			if (!defined $COORD_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'}=0};
 			$pct = sprintf("%.2f", ($COORD_meth{$coord}{'x'}/$COORD_cov{$coord}{'x'})*100);
 			$unmeth = $COORD_cov{$coord}{'x'}-$COORD_meth{$coord}{'x'};
-			print CG "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'x'}\n";
+			if (defined $opt{'x'}) {print CG "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'x'}\n"};
 			$CG_cov++; $CG_bases+=$COORD_cov{$coord}{'x'}; $CG_meth+=$COORD_meth{$coord}{'x'};
 		}
 		if (defined $COORD_cov{$coord}{'h'}) {
 			if (!defined $COORD_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}=0};
 			$pct = sprintf("%.2f", ($COORD_meth{$coord}{'h'}/$COORD_cov{$coord}{'h'})*100);
 			$unmeth = $COORD_cov{$coord}{'h'}-$COORD_meth{$coord}{'h'};
-			print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n";
+			if (defined $opt{'x'}) {print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n"};
 			$CH_cov++; $CH_bases+=$COORD_cov{$coord}{'h'}; $CH_meth+=$COORD_meth{$coord}{'h'};
 		}
 	}
 
 	$AllCov = $CG_bases+$CH_bases;
+	$frag_ct = $single_ct+$pair_ct;
 	if ($CG_bases>0) {$CGpct = sprintf("%.2f", ($CG_meth/$CG_bases)*100)} else {$CGpct = "0.00"};
 	if ($CH_bases>0) {$CHpct = sprintf("%.2f", ($CH_meth/$CH_bases)*100)} else {$CHpct = "0.00"};
-	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct";
+	
+	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct\t$frag_ct\t$pair_ct\t$single_ct";
 
 	system("echo '$cellInfo' > $ARGV[0]/$ARGV[1].complete");
 	exit;
@@ -240,32 +256,34 @@ if (!defined $opt{'s'}) { # main thread
 
 sub load_read {
 	$chr = $_[0]; $pos = $_[1]; $meth = $_[2];
-	@M = split(//, $meth);
-	for ($i = 0; $i < @M; $i++) {
-		if ($M[$i] !~ /[0-9]/) {
-			
-			$coord = "$chr\t$pos";
-			if ($M[$i] eq "x") { #CG, unmeth
-				$read_cov{$coord}{'x'} = 1;
-			} elsif ($M[$i] eq "X") { #CG, meth
-				$read_cov{$coord}{'x'} = 1;
-				$read_meth{$coord}{'x'} = 1;
-			} elsif ($M[$i] eq "y" || $M[$i] eq "z") { # CH , unmeth
-				$read_cov{$coord}{'h'} = 1;
-			} elsif ($M[$i] eq "Y" || $M[$i] eq "Z") { # CH , meth
-				$read_cov{$coord}{'h'} = 1;
-				$read_meth{$coord}{'h'} = 1;
+	if ($pos > 0) { # aligned
+		@M = split(//, $meth);
+		for ($i = 0; $i < @M; $i++) {
+			if ($M[$i] !~ /[0-9]/) {
+				
+				$coord = "$chr\t$pos";
+				if ($M[$i] eq "x") { #CG, unmeth
+					$read_cov{$coord}{'x'} = 1;
+				} elsif ($M[$i] eq "X") { #CG, meth
+					$read_cov{$coord}{'x'} = 1;
+					$read_meth{$coord}{'x'} = 1;
+				} elsif ($M[$i] eq "y" || $M[$i] eq "z") { # CH , unmeth
+					$read_cov{$coord}{'h'} = 1;
+				} elsif ($M[$i] eq "Y" || $M[$i] eq "Z") { # CH , meth
+					$read_cov{$coord}{'h'} = 1;
+					$read_meth{$coord}{'h'} = 1;
+				}
+				
+				$pos++;
+				
+			} elsif ($M[$i] =~ /[0-9]/) {
+				$add = $M[$i];
+				while ($M[$i+1] !~ /xyz/i && $M[$i+1] =~ /[0-9]/) {
+					$i++;
+					$add .= $M[$i];
+				}
+				$pos += $add;
 			}
-			
-			$pos++;
-			
-		} elsif ($M[$i] =~ /[0-9]/) {
-			$add = $M[$i];
-			while ($M[$i+1] !~ /xyz/i && $M[$i+1] =~ /[0-9]/) {
-				$i++;
-				$add .= $M[$i];
-			}
-			$pos += $add;
 		}
 	}
 }
