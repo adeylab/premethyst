@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:N:P:p:T:x", \%opt);
+getopts("O:t:sm:G:C:N:P:p:T:xs:L:", \%opt);
 
 # dfaults
 $minSize = 10000000;
@@ -15,6 +15,7 @@ $minReads = 10000;
 $maxPct = 100;
 $minPct = 0;
 $in_threads = 1;
+$sleep = 3;
 
 $die = "
 
@@ -36,12 +37,14 @@ Options:
    -t   [INT]   Max number of concurrent extract threads (def = 1)
    -T   [INT]   Number of threads for reading input bam (def = $in_threads)
    -C   [STR]   Complexity.txt file from rmdup (recommened)
+   -L   [STR]   List of cell barcodes to include (further filtered if -C)
    -N   [INT]   Minimum unique reads per cell to include (def = $minReads)
                   Note: can be inclusive, additional filtering can
                         be carried out on the calls folder.
    -P   [FLT]   Max percent unique reads to include (def = $maxPct)
    -p   [FLT]   Min percent unique reads to include (def = $minPct)
    -x           Only generate stats, not cellCall files.
+   -s   [INT]   Seconds to wait between thread checks (def = $sleep)
 
 Executable Commands (from $DEFAULTS_FILE)
    samtools:   $samtools
@@ -53,7 +56,17 @@ if (!defined $ARGV[0] || (!defined $opt{'O'} && !defined $opt{'s'})) {die $die};
 if (defined $opt{'N'}) {$minReads = $opt{'N'}};
 if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
 if (defined $opt{'p'}) {$minPct = $opt{'p'}};
+if (defined $opt{'s'}) {$sleep = $opt{'s'}};
 if (defined $opt{'T'}) {$in_threads = $opt{'T'}};
+
+if (defined $opt{'L'}) {
+	open IN, "$opt{'L'}";
+	while ($l = <IN>) {
+		chomp $l;
+		@P = split(/\t/, $l);
+		$INCLUDE{$P[1]} = 1;
+	}
+}
 
 if (defined $opt{'C'}) {
 	open IN, "$opt{'C'}";
@@ -62,6 +75,8 @@ if (defined $opt{'C'}) {
 		@P = split(/\t/, $l);
 		if ($P[3] >= $minReads && $P[4] <= $maxPct && $P[4] >= $minPct) {
 			$INCLUDE{$P[1]} = 1;
+		} elsif (defined $INCLUDE{$P[1]}) {
+			$INCLUDE{$P[1]} = 0;
 		}
 	} close IN;
 }
@@ -105,7 +120,7 @@ if (!defined $opt{'s'}) { # main thread
 		$readID = $P[0]; $readID =~ s/#.+$//;
 		
 		# check if barc is included, ortherwise skip line
-		if (!defined $opt{'C'} || defined $INCLUDE{$barc}) {
+		if (!defined $opt{'C'} || $INCLUDE{$barc} > 0) {
 			# save barc
 			$ALL_CELLS{$barc} = 1;
 			
@@ -168,7 +183,7 @@ if (!defined $opt{'s'}) { # main thread
 	$incomplete = 1;
 	while ($incomplete > 0) {
 		$incomplete = 0;
-		sleep(10); # wait
+		sleep($sleep); # wait
 		check_threads();
 		foreach $queued_barc (keys %QUEUE) {
 			if ($QUEUE{$queued_barc} < 2) { # active or waiting
@@ -191,7 +206,7 @@ if (!defined $opt{'s'}) { # main thread
 	
 } else { # subthread
 	open IN, "$ARGV[0]/$ARGV[1].meth";
-	if (defined $opt{'x'}) {
+	if (!defined $opt{'x'}) {
 		open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
 		open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
 	}
@@ -307,7 +322,11 @@ sub check_threads {
 #		print LOG "\t$ts\tThreads active: $running, adding...\n";
 		for ($waitingID = 0; $waitingID < ($opt{'t'} - $running); $waitingID++) { # see how many short
 			if (defined $QUEUE{$WAITING[$waitingID]}) { # if wiating is occupied
-				system("$premethyst bam-extract -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
+				if (!defined $opt{'x'}) {
+					system("$premethyst bam-extract -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
+				} else {
+					system("$premethyst bam-extract -x -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
+				}
 				$QUEUE{$WAITING[$waitingID]} = 1; # log it as active
 				print LOG "\t\t$WAITING[$waitingID] now running.\n";
 			}
