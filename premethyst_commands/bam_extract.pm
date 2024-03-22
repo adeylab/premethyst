@@ -246,14 +246,14 @@ if (!defined $opt{'s'}) { # main thread
 			if (!defined $COORD_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'}=0};
 			$pct = sprintf("%.2f", ($COORD_meth{$coord}{'x'}/$COORD_cov{$coord}{'x'})*100);
 			$unmeth = $COORD_cov{$coord}{'x'}-$COORD_meth{$coord}{'x'};
-			if (defined $opt{'x'}) {print CG "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'x'}\n"};
+			if (!defined $opt{'x'}) {print CG "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'x'}\n"};
 			$CG_cov++; $CG_bases+=$COORD_cov{$coord}{'x'}; $CG_meth+=$COORD_meth{$coord}{'x'};
 		}
 		if (defined $COORD_cov{$coord}{'h'}) {
 			if (!defined $COORD_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}=0};
 			$pct = sprintf("%.2f", ($COORD_meth{$coord}{'h'}/$COORD_cov{$coord}{'h'})*100);
 			$unmeth = $COORD_cov{$coord}{'h'}-$COORD_meth{$coord}{'h'};
-			if (defined $opt{'x'}) {print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n"};
+			if (!defined $opt{'x'}) {print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n"};
 			$CH_cov++; $CH_bases+=$COORD_cov{$coord}{'h'}; $CH_meth+=$COORD_meth{$coord}{'h'};
 		}
 	}
