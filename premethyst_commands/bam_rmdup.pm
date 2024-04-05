@@ -19,7 +19,6 @@ premethyst bam-rmdup (options) [namesort bam file]
       or   rmdup
 
 Performs barcode-aware duplicate read removal.
-Paired end alignment mode only.
 
 Outputs a name-sorted bam.
 

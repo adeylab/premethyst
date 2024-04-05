@@ -148,6 +148,7 @@ sub load_aliases {
 	foreach $alias ("rename", "rename_calls") {$COMMAND_ALIAS{$alias} = "calls_rename"};
 	foreach $alias ("filter", "filter_calls") {$COMMAND_ALIAS{$alias} = "calls_filter"};
 	foreach $alias ("run", "pipeline") {$COMMAND_ALIAS{$alias} = "run_pipeline"};
+	foreach $alias ("ug2fq") {$COMMAND_ALIAS{$alias} = "ultima2fastq"};
 }
 
 sub load_descriptions {
@@ -157,6 +158,7 @@ sub load_descriptions {
 	# Provide a brief description of its function
 	
 	$COMMAND_DESCRIPTOR{"fastq_trim"} = "Fastq trimming command";
+	$COMMAND_DESCRIPTOR{"ultima2fastq"} = "Converts Ultima cram to sciMET fastq";
 	$COMMAND_DESCRIPTOR{"fastq_align"} = "Wrapper to align sciMET fastq files using BSBolt";
 	$COMMAND_DESCRIPTOR{"defaults"} = "List defaults being used from config file";
 	$COMMAND_DESCRIPTOR{"bam_rmdup"} = "Removes PCR duplicates from a nsrt bam file";
