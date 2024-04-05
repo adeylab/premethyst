@@ -19,12 +19,23 @@ Recommended: unidex (https://github.com/adeylab/unidex) for demultiplexing
 ## Setup
 Download the repository and add the premethyst executable to your path. Premethyst has a number of default parameters that you can set using the configuration file which should be in the same directory as the premethyst executable and can be edited as needed.
 ## Processing Workflow
-Starting files: Pair of fastq files where the read name contains the error-corrected cell barcode. Ideally generated using unidex (https://github.com/adeylab/unidex)
+#### Illumina Reads
+Starting files: Pair of fastq files where the read name contains the error-corrected cell barcode. Ideally generated using unidex: (https://github.com/adeylab/unidex)
 ```
 @[CELL_BARCODE]:NNN#0/1
 ```
+#### Ultima Reads
+If reads were sequenced on an Ultima instrument and taken through their demultiplexing and adapter trimming workflow, the cram files need to be converted to fastqs using the following:
+```
+# if the rx:Z cram field is provided (error-corrected index combination)
+premethyst ultima2fastq -C [ultima.RG.cram] -O [ultima.RG] -r
+
+# if it is not provided and edit-distance matching needs to be performed
+premethyst ultima2fastq -C [ultima.RG.cram] -O [ultima.RG] -a [BA index list] -b [BB index list]
+```
+The Ultima pre-processing pipeline will trim trailing adapters, so the reads can be carried through straight to the alignment step.
 ### Read Trimming
-Paired fastq files are trimmed, with defaults set for sciMET-generated libraries. Leverages TrimGalore.
+Illumina paired fastq files are trimmed, with defaults set for sciMET-generated libraries. Leverages TrimGalore. If Ultima sequencing was used and reads were taken through their demultiplexing pipeline, skip this step.
 ```
 premethyst fastq-trim (options) -O OutputPrefix -1 read1.fq.gz -2 read2.fq.gz
 ```
