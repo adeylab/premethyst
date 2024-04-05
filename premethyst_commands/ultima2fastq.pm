@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub ultima2fastq {
 
-getopts("C:O:a:b:A:B:t:T:v", \%opt);
+getopts("C:O:a:b:A:B:t:T:vr", \%opt);
 
 $threads = 4;
 $o_threads = 2;
@@ -27,10 +27,12 @@ Options:
 -C   [STR]   Ultima cram file from UG pipeline (required)
 -O   [STR]   Output prefix (required)
 
+-r           Error-corrected index already provided as rx:Z: field
+              Just reformat using the rx field
 -a   [STR]   Index list expected for 'ba' barcode field
-             (def = ###)
+              (required if not -r)
 -b   [STR]   Index list expected for 'bb' barcode field
-             (def = ###)
+              (required if not -r)
 
 -A   [INT]   Max matching edit distance for ba index (def = $BA_ED)
 -B   [INT]   Max matching edit distance for bb index (def = $BB_ED)
@@ -46,6 +48,8 @@ Executable Commands (from $DEFAULTS_FILE)
 
 if (!defined $opt{'C'}) {die "\nERROR: CRAM MUST be specified!\n$die"};
 if (!defined $opt{'O'}) {die "\nERROR: Specify output as -O\n$die"};
+if (!defined $opt{'r'} && (!defined $opt{'a'} || !defined $opt{'b'})) {die "\nERROR: If edit distance matching mode (ie no rx field), -a and -b must be specified!\n$die"};
+
 if (defined $opt{'t'}) {$threads = $opt{'t'}};
 if (defined $opt{'T'}) {$o_threads = $opt{'T'}};
 if (defined $opt{'A'}) {$BA_ED = $opt{'A'}};
@@ -53,10 +57,31 @@ if (defined $opt{'B'}) {$BB_ED = $opt{'B'}};
 if (defined $opt{'a'}) {$BA_LIST = $opt{'a'}};
 if (defined $opt{'b'}) {$BB_LIST = $opt{'b'}};
 
-#### Build the initialization out more
+if (defined $opt{'r'}) { # error correction done - just reformat
+	open IN, "samtools view -@ $threads $opt{'C'} |";
+	open PASS, "| $pigz -p $o_threads > $opt{'O'}.fq.gz";
+	while ($l = <IN>) {
+		chomp $l;
+		@P = split(/\t/, $l);
+		$readCT++;
+		
+		# pull indexes & RG
+		$RG = "null"; $RX = "null";
+		($rg_field_new,$RG) = get_field($rg_field,"RG:Z:"); $rg_field = $rg_field_new;
+		($rx_field_new,$RX) = get_field($rx_field,"rx:Z:"); $rx_field = $rx_field_new;
+		
+		if ($RG ne "null" && $RX ne "null") {
+			$RX =~ s/-/_/;
+			print PASS "\@$RG\_$RX:$readCT\n$P[9]\n\+\n$P[10]\n";
+		}
+	} close IN; close PASS;
+	exit;
+} else {
+
 $time = localtime(time);
 open LOG, ">$opt{'O'}.ultima2fastq.log";
 print LOG "premethyst ultima2fastq called at $time
+Edit distance error correction mode toggled.
 Input cram: $opt{'C'}
 Output Prefix: $opt{'O'}
 BA File: $BA_LIST, ED: $BA_ED
@@ -278,6 +303,7 @@ BB Exact Match: $bb_exact
 close LOG;
 
 exit;
+}
 
 sub get_field {
 	($init_field,$flag) = @_;
