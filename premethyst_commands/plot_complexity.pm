@@ -77,9 +77,6 @@ read_complexity($ARGV[0]);
 open OUT, ">$opt{'O'}.plot.txt";
 foreach $cellID (keys %CELLID_complexity) {
 	$annot_cellID = $cellID;
-	if ($cellID =~ /[^ACGTN]/i) {
-		$cellID = expand_barcode($annot_cellID);
-	}
 	if (defined $opt{'a'}) {
 		$annot = $CELLID_annot{$annot_cellID};
 		if (defined $ANNOT_include{$annot} && defined $CELLID_annot{$annot_cellID}) {
