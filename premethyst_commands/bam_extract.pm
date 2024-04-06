@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:N:P:p:T:xs:L:", \%opt);
+getopts("O:t:sm:G:C:N:P:p:T:xs:L:M:B", \%opt);
 
 # dfaults
 $minSize = 10000000;
@@ -16,6 +16,7 @@ $maxPct = 100;
 $minPct = 0;
 $in_threads = 1;
 $sleep = 3;
+$read_mCHmax = 0.4;
 
 $die = "
 
@@ -34,8 +35,17 @@ Options:
    -O   [STR]   Out prefix
    -m   [INT]   Minimum chromosome size to retain (def = $minSize)
                   Used to exclude random and other small contigs
+   -M   [FLT]   Max allowed fraction mCH sites methylated (def = $read_mCHmax)
+                  For brain, rec: 0.4; for non mCH cell types, rec: 0.1
+   -B           Methylation call field is in Bismark format (XM:Z:)
+                  Eg. Bismark or UA-Meth as aligner.
+                  Default assumes BSBolt (XB:Z:)
+
+Threading:
    -t   [INT]   Max number of concurrent extract threads (def = 1)
    -T   [INT]   Number of threads for reading input bam (def = $in_threads)
+
+Cell Filtering:
    -C   [STR]   Complexity.txt file from rmdup (recommened)
    -L   [STR]   List of cell barcodes to include (further filtered if -C)
    -N   [INT]   Minimum unique reads per cell to include (def = $minReads)
@@ -43,6 +53,8 @@ Options:
                         be carried out on the calls folder.
    -P   [FLT]   Max percent unique reads to include (def = $maxPct)
    -p   [FLT]   Min percent unique reads to include (def = $minPct)
+
+Other Options:
    -x           Only generate stats, not cellCall files.
    -s   [INT]   Seconds to wait between thread checks (def = $sleep)
 
@@ -58,6 +70,8 @@ if (defined $opt{'P'}) {$maxPct = $opt{'P'}};
 if (defined $opt{'p'}) {$minPct = $opt{'p'}};
 if (defined $opt{'s'}) {$sleep = $opt{'s'}};
 if (defined $opt{'T'}) {$in_threads = $opt{'T'}};
+if (defined $opt{'M'}) {$read_mCHmax = $opt{'M'}};
+if (defined $opt{'B'}) {$methField = "XM:Z:"} else {$methField = "XB:Z:"};
 
 if (defined $opt{'L'}) {
 	open IN, "$opt{'L'}";
@@ -110,8 +124,8 @@ if (!defined $opt{'s'}) { # main thread
 	
 	open IN, "$samtools view -@ $in_threads $ARGV[0] |";
 	$currentBarc = "null";
-	$methCol = "null";
-	
+	$methCol = 0;
+
 	$prevID = "null";
 	while ($l = <IN>) {
 		chomp $l;
@@ -142,17 +156,7 @@ if (!defined $opt{'s'}) { # main thread
 			# parse read
 			$chr = $P[2];
 			$pos = $P[3];
-			# ID column in bam that has the meth col if not yet found
-			if ($methCol eq "null") {
-				for ($i = 11; $i < @P; $i++) {
-					if ($P[$i] =~ /^XB/) {
-						$methCol = $i;
-						$i+=100;
-					}
-				}
-			}
-			$meth = $P[$methCol];
-			$meth =~ s/^XB:Z://;
+			$meth = get_field($methCol,$methField);
 			
 			if ($prevID eq "null") {
 				$prevChr = $chr;
@@ -210,12 +214,13 @@ if (!defined $opt{'s'}) { # main thread
 		open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
 		open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
 	}
-	$pair_ct = 0; $single_ct = 0; $frag_ct = 0;
+	$pair_ct = 0; $single_ct = 0; $frag_ct = 0; $excluded_mCH = 0;
 	while ($l = <IN>) {
 		chomp $l;
 		@P = split(/\t/, $l);
 		
 		%read_cov = (); %read_meth = ();
+		$read_mCH = 0; $read_CH = 0;
 		if (defined $P[3]) { # pair
 			load_read($P[0],$P[1],$P[2]);
 			load_read($P[3],$P[4],$P[5]);
@@ -224,6 +229,8 @@ if (!defined $opt{'s'}) { # main thread
 			load_read($P[0],$P[1],$P[2]);
 			$single_ct++;
 		}
+		
+		if ($read_CH>0) {if (($read_mCH/$read_CH)<=$read_mCHmax) {
 		
 		foreach $coord (keys %read_cov) {
 			if (!defined $COORD_cov{$coord}) {
@@ -237,6 +244,10 @@ if (!defined $opt{'s'}) { # main thread
 				if (defined $read_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'}++};
 				if (defined $read_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}++};
 			}
+		}
+		
+		}} else {
+			$excluded_mCH++;
 		}
 		
 	} close IN;
@@ -263,41 +274,80 @@ if (!defined $opt{'s'}) { # main thread
 	if ($CG_bases>0) {$CGpct = sprintf("%.2f", ($CG_meth/$CG_bases)*100)} else {$CGpct = "0.00"};
 	if ($CH_bases>0) {$CHpct = sprintf("%.2f", ($CH_meth/$CH_bases)*100)} else {$CHpct = "0.00"};
 	
-	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct\t$frag_ct\t$pair_ct\t$single_ct";
+	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct\t$frag_ct\t$pair_ct\t$single_ct\t$excluded_mCH";
 
 	system("echo '$cellInfo' > $ARGV[0]/$ARGV[1].complete");
 	exit;
+}
+
+sub get_field {
+	($init_field,$flag) = @_;
+	if ($P[$init_field] =~  /^$flag/) {
+		$field_out = $P[$init_field];
+		$field_out =~ s/^.+://;
+		return($init_field,$field_out);
+	} else {
+		for ($fieldID = 10; $fieldID < @P; $fieldID++) {
+			if ($P[$fieldID] =~  /^$flag/) {
+				$field_out = $P[$fieldID];
+				$field_out =~ s/^.+://;
+				return($fieldID,$field_out);
+			}
+		}
+	}
 }
 
 sub load_read {
 	$chr = $_[0]; $pos = $_[1]; $meth = $_[2];
 	if ($pos > 0) { # aligned
 		@M = split(//, $meth);
-		for ($i = 0; $i < @M; $i++) {
-			if ($M[$i] !~ /[0-9]/) {
-				
+		if (defined $opt{'B'}) { # Bismark format
+			for ($i = 0; $i < @M; $i++) {
 				$coord = "$chr\t$pos";
-				if ($M[$i] eq "x") { #CG, unmeth
+				if ($M[$i] eq "z") { # CG, unmeth
 					$read_cov{$coord}{'x'} = 1;
-				} elsif ($M[$i] eq "X") { #CG, meth
+				} elsif ($M[$i] eq "Z") { # CG, meth
 					$read_cov{$coord}{'x'} = 1;
 					$read_meth{$coord}{'x'} = 1;
-				} elsif ($M[$i] eq "y" || $M[$i] eq "z") { # CH , unmeth
+				} elsif ($M[$i] eq "x" || $M[$i] eq "h") { # CH , unmeth
 					$read_cov{$coord}{'h'} = 1;
-				} elsif ($M[$i] eq "Y" || $M[$i] eq "Z") { # CH , meth
+					$read_CH++;
+				} elsif ($M[$i] eq "X" || $M[$i] eq "H") { # CH , meth
 					$read_cov{$coord}{'h'} = 1;
 					$read_meth{$coord}{'h'} = 1;
+					$read_mCH++; $read_CH++;
 				}
-				
 				$pos++;
-				
-			} elsif ($M[$i] =~ /[0-9]/) {
-				$add = $M[$i];
-				while ($M[$i+1] !~ /xyz/i && $M[$i+1] =~ /[0-9]/) {
-					$i++;
-					$add .= $M[$i];
+			}
+		} else { # BSBolt format
+			for ($i = 0; $i < @M; $i++) {
+				if ($M[$i] !~ /[0-9]/) {
+					
+					$coord = "$chr\t$pos";
+					if ($M[$i] eq "x") { #CG, unmeth
+						$read_cov{$coord}{'x'} = 1;
+					} elsif ($M[$i] eq "X") { #CG, meth
+						$read_cov{$coord}{'x'} = 1;
+						$read_meth{$coord}{'x'} = 1;
+					} elsif ($M[$i] eq "y" || $M[$i] eq "z") { # CH , unmeth
+						$read_cov{$coord}{'h'} = 1;
+						$read_CH++;
+					} elsif ($M[$i] eq "Y" || $M[$i] eq "Z") { # CH , meth
+						$read_cov{$coord}{'h'} = 1;
+						$read_meth{$coord}{'h'} = 1;
+						$read_mCH++; $read_CH++;
+					}
+					
+					$pos++;
+					
+				} elsif ($M[$i] =~ /[0-9]/) {
+					$add = $M[$i];
+					while ($M[$i+1] !~ /xyz/i && $M[$i+1] =~ /[0-9]/) {
+						$i++;
+						$add .= $M[$i];
+					}
+					$pos += $add;
 				}
-				$pos += $add;
 			}
 		}
 	}
@@ -322,11 +372,16 @@ sub check_threads {
 #		print LOG "\t$ts\tThreads active: $running, adding...\n";
 		for ($waitingID = 0; $waitingID < ($opt{'t'} - $running); $waitingID++) { # see how many short
 			if (defined $QUEUE{$WAITING[$waitingID]}) { # if wiating is occupied
-				if (!defined $opt{'x'}) {
-					system("$premethyst bam-extract -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
-				} else {
-					system("$premethyst bam-extract -x -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
-				}
+				$command = "$premethyst bam-extract -s $opt{'O'}";
+				if (defined $opt{'x'}) {$command .= " -x"};
+				if (defined $opt{'B'}) {$command .= " -B"};
+				$command .= " $WAITING[$waitingID] &";
+				system($command);
+#				if (!defined $opt{'x'}) {
+#					system("$premethyst bam-extract -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
+#				} else {
+#					system("$premethyst bam-extract -x -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
+#				}
 				$QUEUE{$WAITING[$waitingID]} = 1; # log it as active
 				print LOG "\t\t$WAITING[$waitingID] now running.\n";
 			}

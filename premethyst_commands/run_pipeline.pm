@@ -185,7 +185,7 @@ if ($start <= 3 && $end >= 3) {
 }
 
 # STEP 4: PLOT COMPLEXITY
-if ($start <= 5 && $end >= 5) {
+if ($start <= 4 && $end >= 4) {
 	$ts = localtime(time);
 	print LOG "\n========== $ts STEP 4: PLOT COMPLEXITY\n";
 	if (defined $OPTS{'cplx'}) {
