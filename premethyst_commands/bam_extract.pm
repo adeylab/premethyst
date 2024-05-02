@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub bam_extract {
 
-getopts("O:t:sm:G:C:N:P:p:T:xs:L:M:B", \%opt);
+getopts("O:t:sm:G:C:N:P:p:T:xs:L:M:BEH", \%opt);
 
 # dfaults
 $minSize = 10000000;
@@ -40,6 +40,7 @@ Options:
    -B           Methylation call field is in Bismark format (XM:Z:)
                   Eg. Bismark or UA-Meth as aligner.
                   Default assumes BSBolt (XB:Z:)
+   -H           Exclude CH context
 
 Threading:
    -t   [INT]   Max number of concurrent extract threads (def = 1)
@@ -73,6 +74,10 @@ if (defined $opt{'T'}) {$in_threads = $opt{'T'}};
 if (defined $opt{'M'}) {$read_mCHmax = $opt{'M'}};
 if (defined $opt{'B'}) {$methField = "XM:Z:"} else {$methField = "XB:Z:"};
 
+if (defined $opt{'x'} && defined $opt{'E'}) {
+	die "\nERROR: Cannot run with no cov file output (-x) while also exporting the output (-E)!\n\n";
+}
+
 if (defined $opt{'L'}) {
 	open IN, "$opt{'L'}";
 	while ($l = <IN>) {
@@ -101,6 +106,13 @@ if (!defined $opt{'s'}) { # main thread
 	#defaults
 	if (!defined $opt{'t'}) {$opt{'t'} = 1};
 	
+	$thread_opts = "";
+	if (defined $opt{'x'}) {$thread_opts .= "-x "};
+	if (defined $opt{'B'}) {$thread_opts .= "-B "};
+	if (defined $opt{'H'}) {$thread_opts .= "-H "};
+	if (defined $opt{'E'}) {$thread_opts .= "-E "};
+	$thread_opts .= "-s";
+	
 	# open log file
 	open LOG, ">$opt{'O'}.log";
 	$ts = localtime(time);
@@ -110,6 +122,16 @@ if (!defined $opt{'s'}) { # main thread
 	system("mkdir $opt{'O'}");
 	$ts = localtime(time);
 	print LOG "$ts\tOutput directory created: $opt{'O'}\n";
+	
+	if (defined $opt{'E'}) {
+		print LOG "$ts\tInitializing h5 export streaming (option -E)\n";
+		system("mkdir $opt{'O'}.export");
+		if (defined $opt{'H'}) {
+			system("$premethyst stream-h5 $opt{'O'}.export $opt{'O'} CH &");
+		} else {
+			system("$premethyst stream-h5 $opt{'O'}.export $opt{'O'} &");
+		}
+	}
 	
 	if (defined $opt{'x'}) {
 		print LOG "$ts\tWARNING: -x toggled, will NOT output cov files, only stats files.\n";
@@ -212,7 +234,7 @@ if (!defined $opt{'s'}) { # main thread
 	open IN, "$ARGV[0]/$ARGV[1].meth";
 	if (!defined $opt{'x'}) {
 		open CG, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CG.cov";
-		open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov";
+		if (!defined $opt{'H'}) {open CH, "| sort -k 1,1 -k 2,2n > $ARGV[0]/$ARGV[1].CH.cov"};
 	}
 	$pair_ct = 0; $single_ct = 0; $frag_ct = 0; $excluded_mCH = 0;
 	while ($l = <IN>) {
@@ -230,23 +252,23 @@ if (!defined $opt{'s'}) { # main thread
 			$single_ct++;
 		}
 		
-		if ($read_CH>0) {if (($read_mCH/$read_CH)<=$read_mCHmax) {
-		
-		foreach $coord (keys %read_cov) {
-			if (!defined $COORD_cov{$coord}) {
-				if (defined $read_cov{$coord}{'x'}) {$COORD_cov{$coord}{'x'} = 1};
-				if (defined $read_cov{$coord}{'h'}) {$COORD_cov{$coord}{'h'} = 1};
-				if (defined $read_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'} = 1};
-				if (defined $read_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'} = 1};
-			} else {
-				if (defined $read_cov{$coord}{'x'}) {$COORD_cov{$coord}{'x'}++};
-				if (defined $read_cov{$coord}{'h'}) {$COORD_cov{$coord}{'h'}++};
-				if (defined $read_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'}++};
-				if (defined $read_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}++};
+		if ($read_CH>0) {
+			if (($read_mCH/$read_CH)<=$read_mCHmax) {
+				foreach $coord (keys %read_cov) {
+					if (!defined $COORD_cov{$coord}) {
+						if (defined $read_cov{$coord}{'x'}) {$COORD_cov{$coord}{'x'} = 1};
+						if (defined $read_cov{$coord}{'h'}) {$COORD_cov{$coord}{'h'} = 1};
+						if (defined $read_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'} = 1};
+						if (defined $read_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'} = 1};
+					} else {
+						if (defined $read_cov{$coord}{'x'}) {$COORD_cov{$coord}{'x'}++};
+						if (defined $read_cov{$coord}{'h'}) {$COORD_cov{$coord}{'h'}++};
+						if (defined $read_meth{$coord}{'x'}) {$COORD_meth{$coord}{'x'}++};
+						if (defined $read_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}++};
+					}
+				}
 			}
-		}
-		
-		}} else {
+		} else {
 			$excluded_mCH++;
 		}
 		
@@ -264,10 +286,12 @@ if (!defined $opt{'s'}) { # main thread
 			if (!defined $COORD_meth{$coord}{'h'}) {$COORD_meth{$coord}{'h'}=0};
 			$pct = sprintf("%.2f", ($COORD_meth{$coord}{'h'}/$COORD_cov{$coord}{'h'})*100);
 			$unmeth = $COORD_cov{$coord}{'h'}-$COORD_meth{$coord}{'h'};
-			if (!defined $opt{'x'}) {print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n"};
+			if (!defined $opt{'x'} && !defined $opt{'H'}) {print CH "$coord\t$pct\t$unmeth\t$COORD_meth{$coord}{'h'}\n"};
 			$CH_cov++; $CH_bases+=$COORD_cov{$coord}{'h'}; $CH_meth+=$COORD_meth{$coord}{'h'};
 		}
 	}
+	
+	close CG; close CH;
 
 	$AllCov = $CG_bases+$CH_bases;
 	$frag_ct = $single_ct+$pair_ct;
@@ -277,6 +301,12 @@ if (!defined $opt{'s'}) { # main thread
 	$cellInfo = "$ARGV[1]\t$AllCov\t$CG_cov\t$CGpct\t$CH_cov\t$CHpct\t$frag_ct\t$pair_ct\t$single_ct\t$excluded_mCH";
 
 	system("echo '$cellInfo' > $ARGV[0]/$ARGV[1].complete");
+	
+	if (defined $opt{'E'}) {
+		system("mv $ARGV[0]/$ARGV[1].CG.cov $ARGV[0].export/$ARGV[1].CG.cov");
+		if (!defined $opt{'H'}) {system("mv $ARGV[0]/$ARGV[1].CH.cov $ARGV[0].export/$ARGV[1].CH.cov")};
+	}
+	
 	exit;
 }
 
@@ -352,7 +382,7 @@ sub load_read {
 		}
 	}
 }
-	
+
 sub check_threads {
 	$running = 0; @WAITING = ();
 	foreach $queued_barc (keys %QUEUE) {
@@ -372,16 +402,7 @@ sub check_threads {
 #		print LOG "\t$ts\tThreads active: $running, adding...\n";
 		for ($waitingID = 0; $waitingID < ($opt{'t'} - $running); $waitingID++) { # see how many short
 			if (defined $QUEUE{$WAITING[$waitingID]}) { # if wiating is occupied
-				$command = "$premethyst bam-extract -s $opt{'O'}";
-				if (defined $opt{'x'}) {$command .= " -x"};
-				if (defined $opt{'B'}) {$command .= " -B"};
-				$command .= " $WAITING[$waitingID] &";
-				system($command);
-#				if (!defined $opt{'x'}) {
-#					system("$premethyst bam-extract -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
-#				} else {
-#					system("$premethyst bam-extract -x -s $opt{'O'} $WAITING[$waitingID] &"); # start the thread
-#				}
+				system("$premethyst bam-extract $thread_opts $opt{'O'} $WAITING[$waitingID] &"); # start the thread
 				$QUEUE{$WAITING[$waitingID]} = 1; # log it as active
 				print LOG "\t\t$WAITING[$waitingID] now running.\n";
 			}
