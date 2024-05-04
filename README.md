@@ -1,7 +1,3 @@
-## WARNING: Premethyst is still in development.
-We recommend using sciMETv2 scripts until development is completed.
-https://github.com/adeylab/sciMETv2
-
 # Premethyst
 Premethyst is a pre-processing pipeline for single-cell DNA methylaiton data generated using sciMET workflows. It starts with demultiplexed fastq files and proceeds through alignment, methylation call extraction, and produces a compressed h5 file containing all base-level methylaiton calls for each cell with CG and CH contexts as defaults. The h5 file can the be directly analyzed using amethyst.
 
