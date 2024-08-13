@@ -1,7 +1,7 @@
 # Premethyst
 Premethyst is a pre-processing pipeline for single-cell DNA methylaiton data generated using sciMET workflows. It starts with demultiplexed fastq files and proceeds through alignment, methylation call extraction, and produces a compressed h5 file containing all base-level methylaiton calls for each cell with CG and CH contexts as defaults. The h5 file can the be directly analyzed using amethyst: (https://github.com/lrylaarsdam/amethyst)
 
-Alternatively, if data are generated using the ScaleBio commercial kit, the associated analysis workflow produces bam files that can be directly processed from the extract step on. This requires less prerequisites due to the container-based nature of the comemrcially developed workflow.
+If data are generated using the ScaleBio commercial kit, the current analysis pipeline provided with the product generates the same .h5 call files produced by this pipeline. If that is the case it is recommended to skip the premethyst workflow and proceed directly to amethyst, using the loading functions to directly import the scalebio pipeline outputs.
 
 ## External Software Requirements
 Trim Galore (https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/)
