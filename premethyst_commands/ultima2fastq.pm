@@ -7,7 +7,7 @@ use Exporter "import";
 
 sub ultima2fastq {
 
-getopts("C:O:a:b:A:B:t:T:vr", \%opt);
+getopts("C:O:a:b:A:B:t:T:vr3:", \%opt);
 
 $threads = 4;
 $o_threads = 2;
@@ -33,6 +33,9 @@ Options:
               (required if not -r)
 -b   [STR]   Index list expected for 'bb' barcode field
               (required if not -r)
+			  
+-3   [INT]   Trim INT bases from the 3' end of read
+              (def = 0, suggested 10 if linear amp used)
 
 -A   [INT]   Max matching edit distance for ba index (def = $BA_ED)
 -B   [INT]   Max matching edit distance for bb index (def = $BB_ED)
@@ -279,8 +282,14 @@ while ($l = <IN>) {
 	}
 	
 	if ($ba_pass>0 && $bb_pass>0) {
-		print PASS "\@$RG-$ba_corrected-$bb_corrected:$readCT\n$P[9]\n\+\n$P[10]\n";
-		$passCT++;
+		if (defined $opt{'3'} && $opt{'3'} > 0) {
+			$trimR = substr($P[9],0,(-1*$opt{'3'}));
+			$trimQ = substr($P[10],0,(-1*$opt{'3'}));
+			print PASS "\@$RG-$ba_corrected-$bb_corrected:$readCT\n$trimR\n\+\n$trimQ\n";
+		} else {
+			print PASS "\@$RG-$ba_corrected-$bb_corrected:$readCT\n$P[9]\n\+\n$P[10]\n";
+			$passCT++;
+		}
 	} else {
 		if ($ba_pass<1) {$BA_FAIL{$ba_seq}++; if (defined $opt{'v'}) {print STDERR "BA: FAIL! $ba_seq\n"}};
 		if ($bb_pass<1) {$BB_FAIL{$bb_seq}++; if (defined $opt{'v'}) {print STDERR "BB: FAIL! $bb_seq\n"}};
